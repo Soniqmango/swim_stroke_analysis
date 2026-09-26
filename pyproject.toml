@@ -1,0 +1,24 @@
+[project]
+name = "swimstroke"
+version = "0.1.0"
+description = "Computer-vision swim stroke analysis: stroke rate, stroke count, splits, DPS and turn times from pool-deck video."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "opencv-python>=4.9",
+    "numpy>=1.26",
+    "imageio-ffmpeg>=0.5",  # bundles an ffmpeg binary → browser-playable H.264 output
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swimstroke"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

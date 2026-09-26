@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Large / generated files — never commit these
+data/raw/
+outputs/
+models/
+*.mp4
+*.mov
+*.MOV
+*.avi
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
