@@ -13,6 +13,7 @@ dependencies = [
     "mediapipe==0.10.35",
     "pandas>=2.2",
     "pyarrow>=15",  # parquet storage for cached pose results
+    "matplotlib>=3.8",
 ]
 
 [dependency-groups]
