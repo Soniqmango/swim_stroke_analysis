@@ -13,9 +13,11 @@ import json
 import time
 from pathlib import Path
 
-from swimstroke.diagnostics import plot_diagnostics, summarize
+from swimstroke.diagnostics import plot_diagnostics, plot_strokes, summarize
 from swimstroke.overlay import write_overlay
 from swimstroke.pose import load_pose, save_pose, track_video
+from swimstroke.strokes import detect_cycles, stroke_signal, summarize_strokes
+from swimstroke.validation import compare_with_labels, load_stroke_labels
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -65,10 +67,32 @@ def main(argv: list[str] | None = None) -> None:
     (out_dir / "pose_quality.json").parent.mkdir(parents=True, exist_ok=True)
     (out_dir / "pose_quality.json").write_text(json.dumps(stats, indent=2))
 
-    print(f"\nDiagnostics plot: {plot_diagnostics(pose, out_dir / 'diagnostics.png')}")
+    # --- strokes ---------------------------------------------------------
+    cycles = detect_cycles(pose)
+    cycles.to_csv(out_dir / "strokes.csv", index=False)
+    stroke_stats = summarize_strokes(cycles, pose)
+    print("\nStrokes (near-arm hand entries; strokes = 2 x cycles):")
+    print(json.dumps({k: v for k, v in stroke_stats.items() if k != "params"}, indent=2))
+
+    labels = load_stroke_labels(args.video.stem)
+    ref = None
+    if labels is not None:
+        ref = labels["t"].to_numpy()
+        report = compare_with_labels(cycles, labels)
+        print("\nVs. reference labels (data/labels/stroke_entries.csv):")
+        print(report.to_string(index=False))
+        report.to_csv(out_dir / "stroke_validation.csv", index=False)
+    (out_dir / "strokes.json").write_text(json.dumps(stroke_stats, indent=2))
+
+    t_sig, y_sig = stroke_signal(pose)
+    print(f"\nStroke plot:      {plot_strokes(t_sig, y_sig, cycles['t'].to_numpy(), out_dir / 'strokes.png', ref)}")
+    print(f"Diagnostics plot: {plot_diagnostics(pose, out_dir / 'diagnostics.png')}")
     if not args.no_video:
         print("Rendering overlay video ...")
-        path = write_overlay(args.video, pose, MediaPipePose.connections, out_dir / "overlay.mp4")
+        path = write_overlay(
+            args.video, pose, MediaPipePose.connections, out_dir / "overlay.mp4",
+            entries=cycles["t"].to_numpy(),
+        )
         print(f"Overlay video:    {path}")
 
 

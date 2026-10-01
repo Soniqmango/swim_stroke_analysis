@@ -79,12 +79,24 @@ def draw_pose(
             cv2.circle(image, pt(i), 2 * s, LOW, s, cv2.LINE_AA)
 
 
-def draw_hud(image: np.ndarray, t: float, frame: int, detected: bool, model: str = "") -> None:
+def draw_hud(
+    image: np.ndarray,
+    t: float,
+    frame: int,
+    detected: bool,
+    model: str = "",
+    cycles: int | None = None,
+    entry: bool = False,
+) -> None:
     s = max(1, round(image.shape[0] / 540))
     label = "POSE" if detected else "NO POSE"
     lines = [(f"t={t:6.2f}s  frame {frame}", CENTRE), (label, GREEN if detected else RED)]
     if model:
         lines.append((model, LOW))
+    if cycles is not None:
+        lines.append((f"cycles {cycles}  strokes {2 * cycles}", CENTRE))
+    if entry:
+        lines.append(("HAND ENTRY", LEFT))
     y = 14 * s
     for text, colour in lines:
         # dark outline first so the text stays readable on bright water
@@ -99,8 +111,15 @@ def write_overlay(
     connections: list[tuple[int, int]],
     out_path: str | Path,
     vis_threshold: float = 0.5,
+    entries: np.ndarray | None = None,
+    flash_s: float = 0.3,
 ) -> Path:
-    """Render the pose table on top of the source video."""
+    """Render the pose table on top of the source video.
+
+    `entries`: detected hand-entry times (s). The HUD shows a running cycle
+    count and flashes HAND ENTRY for `flash_s` after each one.
+    """
+    entries = None if entries is None else np.sort(np.asarray(entries, float))
     info = probe(video_path)
     names = landmark_names_in(pose)
     xs = pose[[f"{n}_x" for n in names]].to_numpy()
@@ -115,6 +134,10 @@ def write_overlay(
             if row["detected"]:
                 xy = np.stack([xs[f.idx], ys[f.idx]], axis=1)
                 draw_pose(img, xy, vis[f.idx], names, connections, vis_threshold)
-            draw_hud(img, f.t, f.idx, bool(row["detected"]), model)
+            cycles, entry = None, False
+            if entries is not None:
+                cycles = int(np.searchsorted(entries, f.t, side="right"))
+                entry = cycles > 0 and f.t - entries[cycles - 1] < flash_s
+            draw_hud(img, f.t, f.idx, bool(row["detected"]), model, cycles, entry)
             vw.write(img)
     return Path(out_path)

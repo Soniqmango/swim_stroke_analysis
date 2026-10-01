@@ -74,6 +74,40 @@ def plot_diagnostics(pose: pd.DataFrame, out_path: str | Path, vis_threshold: fl
     for ax in (ax0, ax1):
         ax.spines[["top", "right"]].set_visible(False)
 
+    return _save(fig, out_path)
+
+
+def plot_strokes(
+    t: np.ndarray,
+    signal: np.ndarray,
+    entries: np.ndarray,
+    out_path: str | Path,
+    reference: np.ndarray | None = None,
+) -> Path:
+    """Near-arm reach signal with detected entries (and reference, if labelled).
+    Only the time ranges where the signal exists are shown, side by side."""
+    valid = ~np.isnan(signal)
+    fig, ax = plt.subplots(figsize=(12, 3.6))
+    ax.plot(t, signal, color="#264653", lw=1.3, label="near-arm reach")
+    if len(entries):
+        ys = np.interp(entries, t[valid], signal[valid])
+        ax.plot(entries, ys, "v", color="#e76f51", ms=9, label=f"detected entry ({len(entries)})")
+    if reference is not None:
+        for i, r in enumerate(reference):
+            ax.axvline(r, color="#2a9d8f", ls="--", lw=1, label=f"reference ({len(reference)})" if i == 0 else None)
+    if valid.any():
+        lo = t[valid].min() - 0.5
+        hi = max(t[valid].max(), reference.max() if reference is not None and len(reference) else 0) + 0.5
+        ax.set_xlim(lo, hi)
+    ax.axhline(0, color="grey", lw=0.6)
+    ax.set_ylabel("reach (torso lengths)")
+    ax.set_xlabel("time (s)")
+    ax.legend(loc="lower left", ncol=3, frameon=False, fontsize=9)
+    ax.spines[["top", "right"]].set_visible(False)
+    return _save(fig, out_path)
+
+
+def _save(fig: plt.Figure, out_path: str | Path) -> Path:
     fig.tight_layout()
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)

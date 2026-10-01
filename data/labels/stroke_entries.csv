@@ -1,0 +1,15 @@
+# Reference near-arm hand entries (one per arm cycle), labelled by eye from
+# 0.1 s contact sheets. Only windows where the near arm is clearly visible are
+# labelled; `window` groups entries of one continuous pass.
+# annotator=claude-provisional: to be checked by a human (frame by frame).
+clip,window,t,annotator
+IMG_0073,pass1,5.95,claude-provisional
+IMG_0073,pass1,7.05,claude-provisional
+IMG_0073,pass1,8.25,claude-provisional
+IMG_0073,pass1,9.35,claude-provisional
+IMG_0073,pass1,10.45,claude-provisional
+IMG_0073,pass2,27.90,claude-provisional
+IMG_0073,pass2,28.85,claude-provisional
+IMG_0073,pass2,29.95,claude-provisional
+IMG_0073,pass2,30.95,claude-provisional
+IMG_0073,pass2,32.05,claude-provisional
