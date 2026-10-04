@@ -1,0 +1,12 @@
+# Per-length reference from hand timing and hand counting at the pool (2026-10-04).
+# time_s: time for that length (stopwatch). strokes: hand-counted strokes.
+# TODO: confirm stroke convention (every hand entry vs. one arm/cycles) and pool length.
+clip,length,time_s,strokes,annotator
+IMG_0115,1,16.60,12,coach
+IMG_0115,2,16.75,13,coach
+IMG_0116,1,13.92,14,coach
+IMG_0116,2,15.32,12,coach
+IMG_0117,1,18.24,12,coach
+IMG_0117,2,18.86,12,coach
+IMG_0117,3,18.52,13,coach
+IMG_0117,4,17.96,13,coach
