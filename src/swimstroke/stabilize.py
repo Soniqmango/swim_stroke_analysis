@@ -127,20 +127,24 @@ def estimate_motion(
     ref_frame: int = 0,
     step: int = 5,
     scale: float = 0.5,
+    ref_image: np.ndarray | None = None,
     progress: bool = False,
 ) -> CameraMotion:
-    """Homography from every frame to `ref_frame`."""
+    """Homography from every frame to `ref_frame` of this video, or to an
+    external `ref_image` (e.g. the first frame of another clip filmed from the
+    same tripod spot). With a shared reference, pool geometry marked once is
+    valid for every clip of that camera setup."""
     info = probe(video_path)
     size = (info.width, info.height)
     ts, key_idx, key_H, key_q = [], [], [], []
-    matcher = None
+    matcher = _Matcher(ref_image, scale) if ref_image is not None else None
     for f in iter_frames(video_path):
         ts.append(f.t)
-        if f.idx == ref_frame:
+        if matcher is None and f.idx == ref_frame:
             matcher = _Matcher(f.image, scale)
         if matcher is None or (f.idx - ref_frame) % step:
             continue
-        if f.idx == ref_frame:
+        if f.idx == ref_frame and ref_image is None:
             H, q = np.eye(3), 1.0
         else:
             H, q = matcher.homography(f.image)

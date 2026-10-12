@@ -14,6 +14,37 @@ import pandas as pd
 from swimstroke.strokes import cycle_intervals
 
 STROKE_LABELS = Path("data/labels/stroke_entries.csv")
+LENGTH_LABELS = Path("data/labels/lengths.csv")
+
+
+def compare_lengths(tool: pd.DataFrame, path: str | Path = LENGTH_LABELS) -> pd.DataFrame:
+    """Join tool length times (clip, length, time_s, from_event, to_event) with
+    the coach's per-length reference; one row per reference length."""
+    ref = pd.read_csv(path, comment="#")
+    out = ref.merge(tool, on=["clip", "length"], how="left", suffixes=("_coach", "_tool"))
+    out["err_s"] = out["time_s_tool"] - out["time_s_coach"]
+    out["err_pct"] = 100 * out["err_s"] / out["time_s_coach"]
+    return out
+
+
+def error_summary(cmp: pd.DataFrame) -> pd.DataFrame:
+    """MAE / bias / % error, overall and by length type (start/turn/finish
+    boundaries behave differently, so they are reported separately)."""
+    c = cmp.dropna(subset=["err_s"]).copy()
+    c["kind"] = c["from_event"] + "->" + c["to_event"]
+
+    def stats(g: pd.DataFrame) -> pd.Series:
+        return pd.Series({
+            "n": len(g),
+            "mae_s": g["err_s"].abs().mean(),
+            "bias_s": g["err_s"].mean(),
+            "mape_pct": g["err_pct"].abs().mean(),
+            "max_abs_s": g["err_s"].abs().max(),
+        })
+
+    rows = [stats(c).rename("all")]
+    rows += [stats(g).rename(k) for k, g in c.groupby("kind")]
+    return pd.DataFrame(rows).round(3)
 
 
 def load_stroke_labels(clip: str, path: str | Path = STROKE_LABELS) -> pd.DataFrame | None:
