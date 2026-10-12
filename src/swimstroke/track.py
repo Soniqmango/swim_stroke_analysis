@@ -169,6 +169,38 @@ def fit_lane(path: pd.DataFrame, deg: int = 1, iters: int = 5) -> np.ndarray:
     return coef
 
 
+def wall_activity(
+    video_path: str | Path,
+    motion: CameraMotion,
+    roi: tuple[int, int, int, int],
+    empty_frames: list[int],
+    t_max: float,
+) -> pd.DataFrame:
+    """Per-frame count of pixels in `roi` (x0, x1, y0, y1; reference px) that
+    are normally water but are not water-coloured now.
+
+    "Normally water" comes from frames where the swimmer is known to be far
+    away (`empty_frames`), so fixed objects (ladder, umbrella, deck) never
+    count, and ripples stay blue so they don't count either. What does count
+    is the swimmer's body and the white water they churn up: at a push-off
+    this count jumps, which marks the start.
+    """
+    x0, x1, y0, y1 = roi
+    need = set(empty_frames)
+    last = max(empty_frames)
+    masks: dict[int, np.ndarray] = {}
+    times: dict[int, float] = {}
+    for f in iter_frames(video_path, max_frames=last + 1):
+        if f.t > t_max and f.idx not in need:
+            continue
+        crop = warp_to_reference(f.image, motion.H[f.idx])[y0:y1, x0:x1]
+        masks[f.idx] = water_mask(crop, grow_px=0) > 0
+        times[f.idx] = f.t
+    normally_water = np.mean([masks[i] for i in empty_frames], axis=0) > 0.8
+    rows = [(i, times[i], int((normally_water & ~masks[i]).sum())) for i in sorted(masks) if times[i] <= t_max]
+    return pd.DataFrame(rows, columns=["frame", "t", "activity"])
+
+
 def lane_residual(cands: pd.DataFrame, lane: np.ndarray) -> np.ndarray:
     return cands["y"].to_numpy() - np.polyval(lane, cands["x"].to_numpy())
 

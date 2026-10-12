@@ -113,11 +113,16 @@ def write_overlay(
     vis_threshold: float = 0.5,
     entries: np.ndarray | None = None,
     flash_s: float = 0.3,
+    markers: np.ndarray | None = None,
+    events: pd.DataFrame | None = None,
 ) -> Path:
     """Render the pose table on top of the source video.
 
     `entries`: detected hand-entry times (s). The HUD shows a running cycle
     count and flashes HAND ENTRY for `flash_s` after each one.
+    `markers`: (N, 2) per-frame swimmer position in this video's pixels
+    (NaN = not tracked), drawn as a ring.
+    `events`: wall events (t, event); the HUD shows the last one.
     """
     entries = None if entries is None else np.sort(np.asarray(entries, float))
     info = probe(video_path)
@@ -138,6 +143,17 @@ def write_overlay(
             if entries is not None:
                 cycles = int(np.searchsorted(entries, f.t, side="right"))
                 entry = cycles > 0 and f.t - entries[cycles - 1] < flash_s
+            if markers is not None and f.idx < len(markers) and not np.isnan(markers[f.idx]).any():
+                s = max(1, round(img.shape[0] / 540))
+                cv2.circle(img, (int(markers[f.idx, 0]), int(markers[f.idx, 1])), 14 * s, GREEN, 2 * s, cv2.LINE_AA)
             draw_hud(img, f.t, f.idx, bool(row["detected"]), model, cycles, entry)
+            if events is not None and len(events):
+                past = events[events["t"] <= f.t]
+                if len(past):
+                    e = past.iloc[-1]
+                    label = f"{e['event'].upper()} @ {e['t']:.2f}s"
+                    s = max(1, round(img.shape[0] / 540))
+                    cv2.putText(img, label, (8 * s, img.shape[0] - 10 * s), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * s, (0, 0, 0), 3 * s, cv2.LINE_AA)
+                    cv2.putText(img, label, (8 * s, img.shape[0] - 10 * s), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * s, GREEN, s, cv2.LINE_AA)
             vw.write(img)
     return Path(out_path)

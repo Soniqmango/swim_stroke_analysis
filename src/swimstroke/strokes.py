@@ -147,6 +147,28 @@ def cycle_intervals(times: np.ndarray, segment: np.ndarray | None = None, max_cy
     return d[keep]
 
 
+def strokes_in_length(
+    entries: np.ndarray,
+    swim_start: float,
+    t_end: float,
+    period_s: float,
+) -> int | None:
+    """Hand entries (left + right) in one length from near-arm entries.
+
+    Between two consecutive near-arm entries there is exactly one far-arm
+    entry, so first..last near entry holds 2n - 1 strokes. A far-arm entry
+    can also fall before the first near entry (after the push-off breakout,
+    `swim_start`) or after the last one (before the wall, `t_end`): count it
+    if that stretch is longer than half a cycle. This makes odd counts
+    possible; plain 2 x cycles is always even.
+    """
+    e = np.sort(np.asarray(entries, float))
+    if len(e) == 0 or not np.isfinite(period_s):
+        return None
+    half = 0.5 * period_s
+    return int(2 * len(e) - 1 + (e[0] - swim_start > half) + (t_end - e[-1] > half))
+
+
 def summarize_strokes(cycles: pd.DataFrame, pose: pd.DataFrame, params: StrokeParams = StrokeParams()) -> dict:
     """Cycle/stroke rate from consecutive entries plus tracking coverage.
 

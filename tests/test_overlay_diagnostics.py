@@ -52,10 +52,11 @@ def test_draw_hud_draws_text():
 
 
 def test_cli_defaults():
-    a = parse_args(["clip.mp4"])
-    assert a.model == "heavy" and a.max_frames is None and not a.force
+    a = parse_args(["a.mp4", "b.mp4", "--setup", "pool1"])
+    assert len(a.videos) == 2 and a.setup == "pool1"
+    assert not a.no_strokes and not a.force and not a.overlay
 
 
-def test_cli_rejects_unknown_model():
+def test_cli_requires_setup():
     with pytest.raises(SystemExit):
-        parse_args(["clip.mp4", "--model", "huge"])
+        parse_args(["clip.mp4"])

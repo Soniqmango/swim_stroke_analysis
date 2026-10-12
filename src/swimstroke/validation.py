@@ -47,6 +47,23 @@ def error_summary(cmp: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).round(3)
 
 
+def stroke_error_summary(cmp: pd.DataFrame) -> pd.DataFrame | None:
+    """Stroke-count error per length (tool - coach), where the tool counted."""
+    if "strokes_tool" not in cmp:
+        return None
+    c = cmp.dropna(subset=["strokes_tool", "strokes_coach"]).copy()
+    if c.empty:
+        return None
+    err = c["strokes_tool"].astype(float) - c["strokes_coach"].astype(float)
+    return pd.DataFrame({
+        "n": [len(c)],
+        "mae_strokes": [err.abs().mean()],
+        "bias_strokes": [err.mean()],
+        "mape_pct": [(100 * err.abs() / c["strokes_coach"]).mean()],
+        "exact_share": [(err == 0).mean()],
+    }).round(3)
+
+
 def load_stroke_labels(clip: str, path: str | Path = STROKE_LABELS) -> pd.DataFrame | None:
     """Reference near-arm entry times for one clip, or None if not labelled."""
     path = Path(path)

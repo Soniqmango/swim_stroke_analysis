@@ -1,0 +1,14 @@
+{
+  "name": "hotelpool_2026-10-04",
+  "ref_video": "data/raw/IMG_0115.MOV",
+  "ref_frame": 0,
+  "lane": [
+    0.02296194020171051,
+    653.0180857375694
+  ],
+  "walls_px": {
+    "left": 246.09127389239097,
+    "right": 1712.820550241093
+  },
+  "pool_file": null
+}

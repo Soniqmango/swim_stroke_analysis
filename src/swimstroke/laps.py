@@ -18,8 +18,9 @@ Input: tracked swimmer x-position over time, in the shared reference image.
 
 The hand touch happens a roughly constant time before the blob centre
 reaches x_wall, so that offset largely cancels in a touch-to-touch length
-time. The first length (from a push-off) and the last (to a finish) are
-the least symmetric, so they are expected to carry the largest bias.
+time. The start is the exception: the underwater glide after a push-off is
+invisible, so it is detected directly from white water at the start wall
+(detect_pushoff) instead of being extrapolated.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, uniform_filter1d
 
 
 @dataclass(frozen=True)
@@ -115,9 +116,54 @@ def wall_positions(vertices: pd.DataFrame) -> dict[str, float]:
     return {w: float(g["x"].median()) for w, g in vertices.groupby("wall")}
 
 
-def wall_events(segs: list[Segment], walls: dict[str, float], params: LapParams = LapParams()) -> pd.DataFrame:
+@dataclass(frozen=True)
+class PushoffParams:
+    smooth_s: float = 0.25  # moving average on the activity signal
+    rise_frac: float = 0.3  # activity must exceed base + rise_frac * (peak - base) ...
+    sustain_s: float = 0.5  # ... continuously for this long (rejects brief bumps)
+    onset_frac: float = 0.1  # then step back to where it was last below base + onset_frac * range
+
+
+def detect_pushoff(t: np.ndarray, activity: np.ndarray, params: PushoffParams = PushoffParams()) -> float | None:
+    """Push-off time from start-wall activity (see track.wall_activity).
+
+    Why not extrapolate the first length back to the wall? After a push-off
+    the swimmer glides underwater, faster than they swim and invisible to
+    the tracker, so extrapolating swim speed puts the start ~0.5-2 s late.
+    The push-off itself churns up white water at the wall: we find the
+    first sustained rise and step back to its onset.
+    """
+    t = np.asarray(t, float)
+    if len(t) < 3:
+        return None
+    dt = float(np.median(np.diff(t)))
+    a = uniform_filter1d(np.asarray(activity, float), max(1, int(params.smooth_s / dt)))
+    base, peak = np.percentile(a, 10), a.max()
+    if peak - base <= 0:
+        return None
+    above = a > base + params.rise_frac * (peak - base)
+    need = max(1, int(params.sustain_s / dt))
+    run = 0
+    for i, ok in enumerate(above):
+        run = run + 1 if ok else 0
+        if run >= need:
+            j = i - run + 1  # first frame of the sustained rise
+            low = base + params.onset_frac * (peak - base)
+            while j > 0 and a[j] > low:
+                j -= 1
+            return float(t[j])
+    return None
+
+
+def wall_events(
+    segs: list[Segment],
+    walls: dict[str, float],
+    params: LapParams = LapParams(),
+    start_time: float | None = None,
+) -> pd.DataFrame:
     """Start, turn and finish times. A turn uses the crossing of its two lines;
-    start/finish use where the single available line meets the virtual wall."""
+    the finish uses where the last line meets the virtual wall. The start is
+    `start_time` (a detected push-off) if given, else the first line's crossing."""
     if not segs:
         return pd.DataFrame(columns=["t", "event", "wall"])
     rows = []
@@ -128,7 +174,9 @@ def wall_events(segs: list[Segment], walls: dict[str, float], params: LapParams 
 
     first = segs[0]
     start_wall = wall_side(-first.direction)  # it swims away from this wall
-    if start_wall in walls:
+    if start_time is not None:
+        rows.append({"t": start_time, "event": "start", "wall": start_wall})
+    elif start_wall in walls:
         rows.append({"t": cross(first.line(False, params.fit_window_s), walls[start_wall]),
                      "event": "start", "wall": start_wall})
     for _, v in turn_vertices(segs, params).iterrows():
