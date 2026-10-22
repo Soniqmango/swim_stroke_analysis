@@ -14,3 +14,15 @@ Requires [uv](https://docs.astral.sh/uv/). It installs the correct Python versio
 uv sync
 uv run pytest
 ```
+
+## Pose models
+
+Two interchangeable pose backends (`src/swimstroke/pose/`): MediaPipe and
+RTMPose, the model behind [Sports2D](https://github.com/davidpagnon/Sports2D).
+Compare them on your own clips with:
+
+```bash
+uv run python compare_pose.py VIDEO [VIDEO ...]
+```
+
+Results so far: [docs/pose_comparison.md](docs/pose_comparison.md).
