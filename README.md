@@ -26,3 +26,14 @@ uv run python compare_pose.py VIDEO [VIDEO ...]
 ```
 
 Results so far: [docs/pose_comparison.md](docs/pose_comparison.md).
+
+## Breaststroke kinematics (underwater side view)
+
+Cleans the poses, detects cycles from the legs (arms as a check) and
+measures hip velocity within each cycle:
+
+```bash
+uv run python analyze_kinematics.py VIDEO [VIDEO ...]
+```
+
+First results: [docs/kinematics_results.md](docs/kinematics_results.md).

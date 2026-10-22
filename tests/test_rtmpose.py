@@ -24,6 +24,31 @@ def test_keeps_most_confident_person_and_clips_scores():
     assert (pf.vis == 1.0).all()
 
 
+def _person(x: float, y: float = 100.0, torso: float = 50.0) -> np.ndarray:
+    """A pose whose hips are at (x, y) and shoulders one torso length above."""
+    kp = np.full((K, 2), [x, y])
+    for name in ("left_shoulder", "right_shoulder"):
+        kp[HALPE26.index(name)] = [x, y - torso]
+    return kp
+
+
+def test_follows_same_swimmer_over_more_confident_one():
+    kps = np.stack([_person(100), _person(400)])
+    scores = np.stack([np.full(K, 0.5), np.full(K, 0.9)])
+    # No history: most confident person.
+    assert pick_swimmer(kps, scores, K).xy[HALPE26.index("left_hip"), 0] == 400
+    # Last pick was near x=110: stay on that swimmer despite lower confidence.
+    pf = pick_swimmer(kps, scores, K, last_hip=np.array([110.0, 100.0]))
+    assert pf.xy[HALPE26.index("left_hip"), 0] == 100
+
+
+def test_falls_back_to_most_confident_when_swimmer_lost():
+    kps = np.stack([_person(100), _person(400)])
+    scores = np.stack([np.full(K, 0.5), np.full(K, 0.9)])
+    pf = pick_swimmer(kps, scores, K, last_hip=np.array([250.0, 100.0]))
+    assert pf.xy[HALPE26.index("left_hip"), 0] == 400
+
+
 def test_names_shared_with_mediapipe_for_stroke_detection():
     # strokes.py and the overlay look landmarks up by name, so every joint
     # they use must exist under the same name in both models.

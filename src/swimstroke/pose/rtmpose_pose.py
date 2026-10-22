@@ -60,10 +60,14 @@ class RTMPose:
 
         self.name = f"rtmpose-{mode}"
         self._model = BodyWithFeet(mode=mode, backend="onnxruntime", device=device)
+        self._last_hip: np.ndarray | None = None
 
     def process(self, image_bgr: np.ndarray, t: float) -> PoseFrame:
         keypoints, scores = self._model(image_bgr)  # (P, 26, 2), (P, 26); rtmlib takes BGR
-        return pick_swimmer(keypoints, scores, len(self.landmark_names))
+        pf = pick_swimmer(keypoints, scores, len(self.landmark_names), self._last_hip)
+        if pf.detected:
+            self._last_hip = _hip(pf.xy)
+        return pf
 
     def close(self) -> None:
         pass
@@ -75,13 +79,33 @@ class RTMPose:
         self.close()
 
 
-def pick_swimmer(keypoints, scores, k: int) -> PoseFrame:
-    """One swimmer per clip: keep the most confident person (others are
-    usually reflections on the surface or people on deck)."""
+_L_HIP, _R_HIP = HALPE26.index("left_hip"), HALPE26.index("right_hip")
+_L_SH, _R_SH = HALPE26.index("left_shoulder"), HALPE26.index("right_shoulder")
+
+
+def _hip(xy: np.ndarray) -> np.ndarray:
+    return (xy[_L_HIP] + xy[_R_HIP]) / 2
+
+
+def _torso(xy: np.ndarray) -> float:
+    return float(np.linalg.norm((xy[_L_SH] + xy[_R_SH]) / 2 - _hip(xy)))
+
+
+def pick_swimmer(keypoints, scores, k: int, last_hip: np.ndarray | None = None) -> PoseFrame:
+    """One swimmer per clip. Follow the same person: among people whose hips
+    are within one torso length of the last pick, keep the most confident.
+    With nobody near (first frame, or the swimmer was lost), fall back to the
+    most confident person overall. Without this, two swimmers in view (a
+    second lane, someone passing behind) make the pick flip between them."""
     if keypoints is None or len(keypoints) == 0:
         return PoseFrame(False, np.full((k, 2), np.nan), np.full(k, np.nan))
-    scores = np.asarray(scores, dtype=float)
-    best = int(np.argmax(scores.mean(axis=1)))
-    xy = np.asarray(keypoints[best], dtype=float)
-    vis = np.clip(scores[best], 0.0, 1.0)
-    return PoseFrame(True, xy, vis)
+    kps = np.asarray(keypoints, dtype=float)
+    conf = np.asarray(scores, dtype=float).mean(axis=1)
+    candidates = np.arange(len(kps))
+    if last_hip is not None:
+        near = [i for i in candidates if np.linalg.norm(_hip(kps[i]) - last_hip) <= max(_torso(kps[i]), 1.0)]
+        if near:
+            candidates = np.array(near)
+    best = int(candidates[np.argmax(conf[candidates])])
+    vis = np.clip(np.asarray(scores[best], dtype=float), 0.0, 1.0)
+    return PoseFrame(True, kps[best], vis)
