@@ -19,3 +19,6 @@ models/
 .DS_Store
 .vscode/
 .idea/
+
+# Hand labels whose clip names contain swimmers' names
+data/labels/kinematics_events.csv

@@ -29,11 +29,13 @@ Results so far: [docs/pose_comparison.md](docs/pose_comparison.md).
 
 ## Breaststroke kinematics (underwater side view)
 
-Cleans the poses, detects cycles from the legs (arms as a check) and
-measures hip velocity within each cycle:
+Cleans the poses, then per cycle: arm and leg phases, arm-leg time gaps
+(T1–T3), kick frequency, joint angles, left/right asymmetry and hip velocity.
+`--overlay` renders a video with the skeleton and phases for checking by eye;
+hand labels in `data/labels/kinematics_events.csv` are scored automatically.
 
 ```bash
-uv run python analyze_kinematics.py VIDEO [VIDEO ...]
+uv run python analyze_kinematics.py VIDEO [VIDEO ...] --overlay
 ```
 
-First results: [docs/kinematics_results.md](docs/kinematics_results.md).
+Method, results and limitations: [docs/kinematics_results.md](docs/kinematics_results.md).

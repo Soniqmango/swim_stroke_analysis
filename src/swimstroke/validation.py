@@ -15,6 +15,8 @@ from swimstroke.strokes import cycle_intervals
 
 STROKE_LABELS = Path("data/labels/stroke_entries.csv")
 LENGTH_LABELS = Path("data/labels/lengths.csv")
+# Not tracked in git: clip names there can contain swimmers' names.
+KINEMATICS_LABELS = Path("data/labels/kinematics_events.csv")
 
 
 def compare_lengths(tool: pd.DataFrame, path: str | Path = LENGTH_LABELS) -> pd.DataFrame:
@@ -138,4 +140,29 @@ def compare_with_labels(cycles: pd.DataFrame, labels: pd.DataFrame, tol_s: float
             "rate_error_pct": round(100 * (tool_rate - ref_rate) / ref_rate, 1)
             if tool_rate is not None and ref_rate else None,
         })
+    return pd.DataFrame(rows)
+
+
+def load_kinematics_labels(clip: str, path: str | Path = KINEMATICS_LABELS) -> pd.DataFrame | None:
+    """Hand-labelled breaststroke events (event, t) for one clip, or None."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, comment="#")
+    df = df[df["clip"] == clip]
+    return df if len(df) else None
+
+
+def compare_kinematic_events(events: pd.DataFrame, labels: pd.DataFrame, tol_s: float = 0.12) -> pd.DataFrame:
+    """Score detected events (kinematics.analyze()["events"]) per event type.
+
+    Only the labelled time span counts (from the first to the last label,
+    +- tol_s): nobody labelled the rest, so detections there can't be judged.
+    Default tolerance 0.12 s = 3 frames at 25 fps.
+    """
+    lo, hi = labels["t"].min() - tol_s, labels["t"].max() + tol_s
+    rows = []
+    for event, g in labels.groupby("event", sort=False):
+        det = events[(events["event"] == event) & events["t"].between(lo, hi)]["t"].to_numpy(dtype=float)
+        rows.append({"event": event, **match_events(det, g["t"].to_numpy(dtype=float), tol_s)})
     return pd.DataFrame(rows)

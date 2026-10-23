@@ -114,3 +114,23 @@ def test_compare_with_labels_ignores_unlabelled_stretches():
     r = compare_with_labels(cycles, labels).iloc[0]
     assert (r["true_pos"], r["false_pos"], r["missed"]) == (3, 0, 0)  # 20.0 not counted
     assert r["rate_error_pct"] == pytest.approx(0.0)
+
+
+def test_compare_kinematic_events_per_event_type():
+    import pandas as pd
+
+    from swimstroke.validation import compare_kinematic_events
+
+    events = pd.DataFrame({
+        "cycle": [0, 0, 1, 1, 2],
+        "event": ["leg_recovery_end", "pull_in", "leg_recovery_end", "pull_in", "leg_recovery_end"],
+        "t": [2.00, 3.55, 4.05, 5.90, 9.00],  # 9.00 is outside the labelled span
+    })
+    labels = pd.DataFrame({
+        "event": ["leg_recovery_end", "leg_recovery_end", "pull_in", "pull_in"],
+        "t": [2.04, 4.00, 3.60, 5.60],
+    })
+    cmp = compare_kinematic_events(events, labels, tol_s=0.12).set_index("event")
+    assert cmp.loc["leg_recovery_end", "true_pos"] == 2
+    assert cmp.loc["leg_recovery_end", "false_pos"] == 0  # 9.00 s ignored
+    assert cmp.loc["pull_in", "true_pos"] == 1 and cmp.loc["pull_in", "missed"] == 1

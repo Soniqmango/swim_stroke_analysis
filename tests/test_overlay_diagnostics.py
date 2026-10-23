@@ -60,3 +60,20 @@ def test_cli_defaults():
 def test_cli_requires_setup():
     with pytest.raises(SystemExit):
         parse_args(["clip.mp4"])
+
+
+def test_phase_at_follows_latest_event_per_limb():
+    import pandas as pd
+
+    from swimstroke.overlay import phase_at
+
+    ev = pd.DataFrame({
+        "cycle": [0, 0, 0, 0],
+        "event": ["leg_recovery_end", "arm_extension", "kick_end", "pull_start"],
+        "t": [1.0, 1.1, 1.3, 2.0],
+    })
+    assert phase_at(ev, 0.5, "LEGS") is None
+    assert phase_at(ev, 1.2, "LEGS") == "KICK"
+    assert phase_at(ev, 1.2, "ARMS") == "GLIDE"
+    assert phase_at(ev, 2.5, "LEGS") == "GLIDE"
+    assert phase_at(ev, 2.5, "ARMS") == "PULL"

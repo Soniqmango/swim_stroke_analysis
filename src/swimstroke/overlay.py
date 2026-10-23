@@ -157,3 +157,71 @@ def write_overlay(
                     cv2.putText(img, label, (8 * s, img.shape[0] - 10 * s), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * s, GREEN, s, cv2.LINE_AA)
             vw.write(img)
     return Path(out_path)
+
+
+# event -> (limb, phase that starts at this event); see swimstroke.kinematics
+PHASE_STARTS = {
+    "leg_recovery_end": ("LEGS", "KICK"),
+    "kick_end": ("LEGS", "GLIDE"),
+    "leg_recovery_start": ("LEGS", "RECOVERY"),
+    "arm_extension": ("ARMS", "GLIDE"),
+    "pull_start": ("ARMS", "PULL"),
+    "pull_in": ("ARMS", "RECOVERY"),
+}
+
+
+def phase_at(events: pd.DataFrame, t: float, limb: str) -> str | None:
+    """Phase of one limb at time t: the phase started by the latest event."""
+    keys = [e for e, (lb, _) in PHASE_STARTS.items() if lb == limb]
+    past = events[(events["t"] <= t) & events["event"].isin(keys)]
+    return PHASE_STARTS[past.iloc[-1]["event"]][1] if len(past) else None
+
+
+def write_kinematics_overlay(
+    video_path: str | Path,
+    pose: pd.DataFrame,
+    connections: list[tuple[int, int]],
+    events: pd.DataFrame,
+    out_path: str | Path,
+    vis_threshold: float = 0.3,
+    flash_s: float = 0.25,
+) -> Path:
+    """Render the gated pose with breaststroke phases, for checking by eye.
+
+    `events`: (cycle, event, t) from swimstroke.kinematics.analyze. The HUD
+    shows the cycle number, the current leg and arm phase, and flashes each
+    event's name for `flash_s` after it. Frames the gate rejected show
+    NO POSE, so it's visible where the analysis had nothing to go on.
+    """
+    events = events.sort_values("t", kind="stable")
+    info = probe(video_path)
+    names = landmark_names_in(pose)
+    xs = pose[[f"{n}_x" for n in names]].to_numpy()
+    ys = pose[[f"{n}_y" for n in names]].to_numpy()
+    vis = pose[[f"{n}_vis" for n in names]].to_numpy()
+
+    with VideoWriter(out_path, fps=info.fps, size=(info.width, info.height)) as vw:
+        for f in iter_frames(video_path, max_frames=len(pose)):
+            img = f.image
+            detected = bool(pose.iloc[f.idx]["detected"])
+            if detected:
+                draw_pose(img, np.stack([xs[f.idx], ys[f.idx]], axis=1), vis[f.idx], names, connections, vis_threshold)
+            draw_hud(img, f.t, f.idx, detected)
+            s = max(1, round(img.shape[0] / 540))
+            past = events[events["t"] <= f.t]
+            lines = []
+            if len(past):
+                lines.append((f"cycle {int(past.iloc[-1]['cycle']) + 1}", CENTRE))
+            for limb, colour in (("LEGS", LEFT), ("ARMS", RIGHT)):
+                ph = phase_at(events, f.t, limb)
+                if ph:
+                    lines.append((f"{limb}: {ph}", colour))
+            recent = past[f.t - past["t"] < flash_s]
+            lines += [(e.upper().replace("_", " "), GREEN) for e in recent["event"]]
+            y = img.shape[0] - 10 * s - 16 * s * (len(lines) - 1)
+            for text, colour in lines:
+                cv2.putText(img, text, (8 * s, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * s, (0, 0, 0), 3 * s, cv2.LINE_AA)
+                cv2.putText(img, text, (8 * s, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6 * s, colour, s, cv2.LINE_AA)
+                y += 16 * s
+            vw.write(img)
+    return Path(out_path)
